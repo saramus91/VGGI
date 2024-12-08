@@ -1,44 +1,43 @@
-function Model(name) {
-    this.name = name;
-    this.iVertexBuffer = gl.createBuffer();
-    this.iNormalBuffer = gl.createBuffer();
-    this.iIndexBuffer = gl.createBuffer();
-    this.numIndices = 0;
-
-    let a = 2;
-    let c = 1.5;
-    let theta = Math.PI / 8;
-    let scale = 0.2;
-
-    // Parametric surface: X(u,t)
-    function X(u,t) {
-        let x = scale * (a + t*Math.cos(theta) + c*t*t*Math.sin(theta))*Math.cos(u);
-        let y = scale * (a + t*Math.cos(theta) + c*t*t*Math.sin(theta))*Math.sin(u);
-        let z = scale * (-t*Math.sin(theta) + c*t*t*Math.cos(theta));
-        return [x,y,z];
+export class Model {
+    constructor(gl, shProgram) {
+        this.gl = gl;
+        this.shProgram = shProgram;
+        this.iVertexBuffer = gl.createBuffer();
+        this.iNormalBuffer = gl.createBuffer();
+        this.iIndexBuffer = gl.createBuffer();
+        this.numIndices = 0;
     }
 
-    // Partial derivatives for analytic normals
-    // Xu = dX/du
-    function Xu(u,t) {
-        let common = (a + t*Math.cos(theta) + c*t*t*Math.sin(theta));
-        let dux = scale * (-common*Math.sin(u));
-        let duy = scale * (common*Math.cos(u));
-        let duz = 0.0;
-        return [dux, duy, duz];
-    }
+    CreateSurfaceData(uResolution, vResolution) {
+        let gl = this.gl;
+        let a = 2;
+        let c = 1.5;
+        let theta = Math.PI / 8;
+        let scale = 0.2;
 
-    // Xt = dX/dt
-    function Xt(u,t) {
-        // derivative w.r.t t inside
-        let dCommon_dt = Math.cos(theta) + 2*c*t*Math.sin(theta);
-        let dx = scale * (dCommon_dt*Math.cos(u));
-        let dy = scale * (dCommon_dt*Math.sin(u));
-        let dz = scale * (-Math.sin(theta) + 2*c*t*Math.cos(theta));
-        return [dx,dy,dz];
-    }
+        function X(u,t) {
+            let x = scale * (a + t*Math.cos(theta) + c*t*t*Math.sin(theta))*Math.cos(u);
+            let y = scale * (a + t*Math.cos(theta) + c*t*t*Math.sin(theta))*Math.sin(u);
+            let z = scale * (-t*Math.sin(theta) + c*t*t*Math.cos(theta));
+            return [x,y,z];
+        }
 
-    this.CreateSurfaceData = function(uResolution, vResolution) {
+        function Xu(u,t) {
+            let common = (a + t*Math.cos(theta) + c*t*t*Math.sin(theta));
+            let dux = scale * (-common*Math.sin(u));
+            let duy = scale * (common*Math.cos(u));
+            let duz = 0.0;
+            return [dux, duy, duz];
+        }
+
+        function Xt(u,t) {
+            let dCommon_dt = Math.cos(theta) + 2*c*t*Math.sin(theta);
+            let dx = scale * (dCommon_dt*Math.cos(u));
+            let dy = scale * (dCommon_dt*Math.sin(u));
+            let dz = scale * (-Math.sin(theta) + 2*c*t*Math.cos(theta));
+            return [dx,dy,dz];
+        }
+
         let uMax = 2*Math.PI;
         let tMin = -2;
         let tMax = 2;
@@ -50,7 +49,6 @@ function Model(name) {
         let normals = [];
         let indices = [];
 
-        // Generate vertices and normals
         for (let i=0; i<=uResolution; i++){
             let u = i*du;
             for (let j=0; j<=vResolution; j++){
@@ -58,10 +56,8 @@ function Model(name) {
                 let pos = X(u,t);
                 vertices.push(pos[0], pos[1], pos[2]);
 
-                // Compute normals
                 let xu = Xu(u,t);
                 let xt = Xt(u,t);
-                // Cross product
                 let nx = xu[1]*xt[2]-xu[2]*xt[1];
                 let ny = xu[2]*xt[0]-xu[0]*xt[2];
                 let nz = xu[0]*xt[1]-xu[1]*xt[0];
@@ -71,7 +67,6 @@ function Model(name) {
             }
         }
 
-        // Generate indices for triangles
         for (let i=0; i<uResolution; i++){
             for (let j=0; j<vResolution; j++){
                 let i0 = i*(vResolution+1)+j;
@@ -93,18 +88,21 @@ function Model(name) {
         gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW);
 
         this.numIndices = indices.length;
-    };
+    }
 
-    this.Draw = function() {
+    Draw() {
+        let gl = this.gl;
+        let sh = this.shProgram;
+
         gl.bindBuffer(gl.ARRAY_BUFFER, this.iVertexBuffer);
-        gl.enableVertexAttribArray(shProgram.iAttribVertex);
-        gl.vertexAttribPointer(shProgram.iAttribVertex, 3, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(sh.iAttribVertex);
+        gl.vertexAttribPointer(sh.iAttribVertex, 3, gl.FLOAT, false, 0, 0);
 
         gl.bindBuffer(gl.ARRAY_BUFFER, this.iNormalBuffer);
-        gl.enableVertexAttribArray(shProgram.iAttribNormal);
-        gl.vertexAttribPointer(shProgram.iAttribNormal, 3, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(sh.iAttribNormal);
+        gl.vertexAttribPointer(sh.iAttribNormal, 3, gl.FLOAT, false, 0, 0);
 
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.iIndexBuffer);
         gl.drawElements(gl.TRIANGLES, this.numIndices, gl.UNSIGNED_SHORT, 0);
-    };
+    }
 }

@@ -1,14 +1,14 @@
-// Vertex shader (Gouraud Shading)
+
 var vertexShaderSource = `
 attribute vec3 aVertexPosition;
 attribute vec3 aVertexNormal;
 
-uniform mat4 uMVMatrix;           // Model-View matrix
-uniform mat4 uMVPMatrix;          // Model-View-Projection matrix
-uniform mat3 uNormalMatrix;       // Normal matrix
-uniform vec3 uLightPos;           // Light position in eye coordinates
+uniform mat4 uMVMatrix;
+uniform mat4 uMVPMatrix;
+uniform mat3 uNormalMatrix;
+uniform vec3 uLightPos;
 
-varying vec4 vColor;              // Color passed to fragment shader
+varying vec4 vColor;
 
 void main(void) {
     vec4 vertexPositionEye4 = uMVMatrix * vec4(aVertexPosition,1.0);
@@ -17,14 +17,11 @@ void main(void) {
     vec3 normal = normalize(uNormalMatrix * aVertexNormal);
     vec3 L = normalize(uLightPos - vertexPositionEye);
 
-    // Simple Phong coefficients
     vec3 ambientColor = vec3(0.1, 0.1, 0.1);
     vec3 diffuseColor = vec3(0.6, 0.6, 0.8);
     vec3 specularColor = vec3(1.0, 1.0, 1.0);
 
     float lambert = max(dot(normal,L), 0.0);
-
-    // Viewer direction in eye space (0,0,1)
     vec3 V = vec3(0.0,0.0,1.0);
     vec3 R = reflect(-L, normal);
     float spec = 0.0;
@@ -39,7 +36,6 @@ void main(void) {
 }
 `;
 
-// Fragment shader (Gouraud Shading)
 var fragmentShaderSource = `
 #ifdef GL_FRAGMENT_PRECISION_HIGH
    precision highp float;
