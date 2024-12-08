@@ -5,6 +5,9 @@ export class Model {
         this.iVertexBuffer = gl.createBuffer();
         this.iNormalBuffer = gl.createBuffer();
         this.iIndexBuffer = gl.createBuffer();
+        this.iTexCoordBuffer = gl.createBuffer();
+        this.iTangentBuffer = gl.createBuffer();
+        this.iBitangentBuffer = gl.createBuffer();
         this.numIndices = 0;
     }
 
@@ -48,22 +51,39 @@ export class Model {
         let vertices = [];
         let normals = [];
         let indices = [];
+        let texCoords = [];
+        let tangents = [];
+        let bitangents = [];
 
         for (let i=0; i<=uResolution; i++){
-            let u = i*du;
+            let U = i*du;
+            let uTex = i / uResolution;
             for (let j=0; j<=vResolution; j++){
-                let t = tMin + j*dt;
-                let pos = X(u,t);
+                let T = tMin + j*dt;
+                let vTex = (T - tMin) / (tMax - tMin);
+
+                let pos = X(U,T);
                 vertices.push(pos[0], pos[1], pos[2]);
 
-                let xu = Xu(u,t);
-                let xt = Xt(u,t);
+                let xu = Xu(U,T);
+                let xt = Xt(U,T);
                 let nx = xu[1]*xt[2]-xu[2]*xt[1];
                 let ny = xu[2]*xt[0]-xu[0]*xt[2];
                 let nz = xu[0]*xt[1]-xu[1]*xt[0];
                 let len = Math.sqrt(nx*nx+ny*ny+nz*nz);
                 nx/=len; ny/=len; nz/=len;
                 normals.push(nx, ny, nz);
+
+
+                let tLen = Math.sqrt(xu[0]*xu[0]+xu[1]*xu[1]+xu[2]*xu[2]);
+                let Tn = [xu[0]/tLen, xu[1]/tLen, xu[2]/tLen];
+                let bLen = Math.sqrt(xt[0]*xt[0]+xt[1]*xt[1]+xt[2]*xt[2]);
+                let Bn = [xt[0]/bLen, xt[1]/bLen, xt[2]/bLen];
+
+                tangents.push(Tn[0], Tn[1], Tn[2]);
+                bitangents.push(Bn[0], Bn[1], Bn[2]);
+
+                texCoords.push(uTex, vTex);
             }
         }
 
@@ -84,6 +104,15 @@ export class Model {
         gl.bindBuffer(gl.ARRAY_BUFFER, this.iNormalBuffer);
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(normals), gl.STATIC_DRAW);
 
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.iTexCoordBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(texCoords), gl.STATIC_DRAW);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.iTangentBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(tangents), gl.STATIC_DRAW);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.iBitangentBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(bitangents), gl.STATIC_DRAW);
+
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.iIndexBuffer);
         gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW);
 
@@ -101,6 +130,18 @@ export class Model {
         gl.bindBuffer(gl.ARRAY_BUFFER, this.iNormalBuffer);
         gl.enableVertexAttribArray(sh.iAttribNormal);
         gl.vertexAttribPointer(sh.iAttribNormal, 3, gl.FLOAT, false, 0, 0);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.iTexCoordBuffer);
+        gl.enableVertexAttribArray(sh.iAttribTexCoord);
+        gl.vertexAttribPointer(sh.iAttribTexCoord, 2, gl.FLOAT, false, 0, 0);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.iTangentBuffer);
+        gl.enableVertexAttribArray(sh.iAttribTangent);
+        gl.vertexAttribPointer(sh.iAttribTangent, 3, gl.FLOAT, false, 0, 0);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.iBitangentBuffer);
+        gl.enableVertexAttribArray(sh.iAttribBitangent);
+        gl.vertexAttribPointer(sh.iAttribBitangent, 3, gl.FLOAT, false, 0, 0);
 
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.iIndexBuffer);
         gl.drawElements(gl.TRIANGLES, this.numIndices, gl.UNSIGNED_SHORT, 0);

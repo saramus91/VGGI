@@ -2,6 +2,7 @@
 
 import { TrackballRotator } from './Utils/trackball-rotator.mjs';
 import { Model } from './model.mjs';
+import { LightModel } from './lightModel.mjs';
 
 let gl;                         // The webgl context.
 let surface;                    // A surface model
@@ -16,18 +17,29 @@ let lightRadiusVal = 10.0;
 let lightAzimuthDeg = 45.0;
 let lightElevationDeg = 30.0;
 
+let diffuseTexture;
+let specularTexture;
+let normalTexture;
+
 class ShaderProgram {
     constructor(name, program) {
         this.name = name;
         this.prog = program;
         this.iAttribVertex = -1;
         this.iAttribNormal = -1;
+        this.iAttribTexCoord = -1;
+        this.iAttribTangent = -1;
+        this.iAttribBitangent = -1;
 
         this.iModelMatrix = -1;
         this.iViewMatrix = -1;
         this.iProjectionMatrix = -1;
         this.iNormalMatrix = -1;
         this.iLightPosWorld = -1;
+
+        this.iDiffuseMap = -1;
+        this.iSpecularMap = -1;
+        this.iNormalMap = -1;
     }
     Use() {
         gl.useProgram(this.prog);
@@ -108,6 +120,18 @@ function draw() {
     let lightPosWorld = getLightPosition();
     gl.uniform3fv(shProgram.iLightPosWorld, lightPosWorld);
 
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, diffuseTexture);
+    gl.uniform1i(shProgram.iDiffuseMap, 0);
+
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, specularTexture);
+    gl.uniform1i(shProgram.iSpecularMap, 1);
+
+    gl.activeTexture(gl.TEXTURE2);
+    gl.bindTexture(gl.TEXTURE_2D, normalTexture);
+    gl.uniform1i(shProgram.iNormalMap, 2);
+
     surface.Draw();
 
     let lightSphereModelMatrix = m4.translation(lightPosWorld[0], lightPosWorld[1], lightPosWorld[2]);
@@ -122,6 +146,40 @@ function draw() {
     gl.uniformMatrix3fv(shProgram.iNormalMatrix, false, nMat3);
 }
 
+function initTextures() {
+    function loadTexture(url) {
+        const texture = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+
+        const level = 0;
+        const internalFormat = gl.RGBA;
+        const width = 1;
+        const height = 1;
+        const border = 0;
+        const srcFormat = gl.RGBA;
+        const srcType = gl.UNSIGNED_BYTE;
+        const pixel = new Uint8Array([255, 255, 255, 255]);
+        gl.texImage2D(gl.TEXTURE_2D, level, internalFormat,
+            width, height, border, srcFormat, srcType,
+            pixel);
+
+        const image = new Image();
+        image.onload = function() {
+            gl.bindTexture(gl.TEXTURE_2D, texture);
+            gl.texImage2D(gl.TEXTURE_2D, level, internalFormat,
+                srcFormat, srcType, image);
+
+            gl.generateMipmap(gl.TEXTURE_2D);
+        };
+        image.src = url;
+        return texture;
+    }
+
+    diffuseTexture = loadTexture('/textures/diffuse.jpg');
+    specularTexture = loadTexture('/textures/specular.jpg');
+    normalTexture = loadTexture('/textures/normal.jpg');
+}
+
 function initGL() {
     let prog = createProgram(gl, vertexShaderSource, fragmentShaderSource);
     shProgram = new ShaderProgram('Gouraud', prog);
@@ -129,11 +187,19 @@ function initGL() {
 
     shProgram.iAttribVertex = gl.getAttribLocation(prog, "aVertexPosition");
     shProgram.iAttribNormal = gl.getAttribLocation(prog, "aVertexNormal");
+    shProgram.iAttribTexCoord = gl.getAttribLocation(prog, "aTexCoord");
+    shProgram.iAttribTangent = gl.getAttribLocation(prog, "aTangent");
+    shProgram.iAttribBitangent = gl.getAttribLocation(prog, "aBitangent");
+
     shProgram.iModelMatrix = gl.getUniformLocation(prog, "uModelMatrix");
     shProgram.iViewMatrix = gl.getUniformLocation(prog, "uViewMatrix");
     shProgram.iProjectionMatrix = gl.getUniformLocation(prog, "uProjectionMatrix");
     shProgram.iNormalMatrix = gl.getUniformLocation(prog, "uNormalMatrix");
     shProgram.iLightPosWorld = gl.getUniformLocation(prog, "uLightPosWorld");
+
+    shProgram.iDiffuseMap = gl.getUniformLocation(prog, "uDiffuseMap");
+    shProgram.iSpecularMap = gl.getUniformLocation(prog, "uSpecularMap");
+    shProgram.iNormalMap = gl.getUniformLocation(prog, "uNormalMap");
 
     surface = new Model(gl, shProgram);
     surface.CreateSurfaceData(uResolution, vResolution);
@@ -142,6 +208,8 @@ function initGL() {
     lightSphere.CreateSphereData(0.1, 16, 16);
 
     gl.enable(gl.DEPTH_TEST);
+
+    initTextures();
 }
 
 function updateSliders() {
