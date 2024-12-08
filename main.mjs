@@ -2,6 +2,8 @@
 
 import { TrackballRotator } from './Utils/trackball-rotator.mjs';
 import { Model } from './model.mjs';
+import { LightModel } from './lightModel.mjs';
+
 
 let gl;                         // The webgl context.
 let surface;                    // A surface model
