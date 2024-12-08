@@ -1,29 +1,32 @@
-
 var vertexShaderSource = `
 attribute vec3 aVertexPosition;
 attribute vec3 aVertexNormal;
 
-uniform mat4 uMVMatrix;
-uniform mat4 uMVPMatrix;
+uniform mat4 uModelMatrix;
+uniform mat4 uViewMatrix;
+uniform mat4 uProjectionMatrix;
 uniform mat3 uNormalMatrix;
-uniform vec3 uLightPos;
+uniform vec3 uLightPosWorld;
 
 varying vec4 vColor;
 
 void main(void) {
-    vec4 vertexPositionEye4 = uMVMatrix * vec4(aVertexPosition,1.0);
-    vec3 vertexPositionEye = vertexPositionEye4.xyz;
+    vec4 vertexPositionWorld4 = uModelMatrix * vec4(aVertexPosition,1.0);
+    vec3 vertexPositionWorld = vertexPositionWorld4.xyz;
 
     vec3 normal = normalize(uNormalMatrix * aVertexNormal);
-    vec3 L = normalize(uLightPos - vertexPositionEye);
+
+    vec3 L = normalize(uLightPosWorld - vertexPositionWorld);
+
+
+    vec3 V = vec3(0.0,0.0,1.0);
+    vec3 R = reflect(-L, normal);
 
     vec3 ambientColor = vec3(0.1, 0.1, 0.1);
     vec3 diffuseColor = vec3(0.6, 0.6, 0.8);
     vec3 specularColor = vec3(1.0, 1.0, 1.0);
 
     float lambert = max(dot(normal,L), 0.0);
-    vec3 V = vec3(0.0,0.0,1.0);
-    vec3 R = reflect(-L, normal);
     float spec = 0.0;
     if(lambert > 0.0) {
         spec = pow(max(dot(R,V),0.0), 20.0);
@@ -32,7 +35,9 @@ void main(void) {
     vec3 color = ambientColor + diffuseColor*lambert + specularColor*spec;
     vColor = vec4(color,1.0);
 
-    gl_Position = uMVPMatrix * vec4(aVertexPosition,1.0);
+
+    vec4 vertexPositionEye = uViewMatrix * vertexPositionWorld4;
+    gl_Position = uProjectionMatrix * vertexPositionEye;
 }
 `;
 
