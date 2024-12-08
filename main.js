@@ -5,6 +5,9 @@ let surface;                    // A surface model
 let shProgram;                  // A shader program
 let spaceball;                  // A SimpleRotator object that lets the user rotate the view by mouse.
 
+let uResolution = 24;
+let vResolution = 20;
+
 function deg2rad(angle) {
     return angle * Math.PI / 180;
 }
@@ -17,10 +20,12 @@ function ShaderProgram(name, program) {
 
     // Location of the attribute variable in the shader program.
     this.iAttribVertex = -1;
-    // Location of the uniform specifying a color for the primitive.
-    this.iColor = -1;
-    // Location of the uniform matrix representing the combined transformation.
+    this.iAttribNormal = -1;
+
     this.iModelViewProjectionMatrix = -1;
+    this.iModelViewMatrix = -1;
+    this.iNormalMatrix = -1;
+    this.iLightPos = -1;
 
     this.Use = function() {
         gl.useProgram(this.prog);
@@ -32,7 +37,7 @@ function ShaderProgram(name, program) {
  * (Note that the use of the above drawPrimitive function is not an efficient
  * way to draw with WebGL.  Here, the geometry is so simple that it doesn't matter.)
  */
-function draw() { 
+function draw() {
     gl.clearColor(0,0,0,1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     
@@ -44,35 +49,51 @@ function draw() {
 
     let rotateToPointZero = m4.axisRotation([0.707,0.707,0], 0.7);
     let translateToPointZero = m4.translation(0,0,-10);
+    let mv = m4.multiply(translateToPointZero, m4.multiply(rotateToPointZero, modelView));
+    let mvp = m4.multiply(projection, mv);
 
-    let matAccum0 = m4.multiply(rotateToPointZero, modelView );
-    let matAccum1 = m4.multiply(translateToPointZero, matAccum0 );
-        
-    /* Multiply the projection matrix times the modelview matrix to give the
-       combined transformation matrix, and send that to the shader program. */
-    let modelViewProjection = m4.multiply(projection, matAccum1 );
+    // Normal matrix 3x3
+    let normalMatrix = m4.inverse(mv);
+    normalMatrix = m4.transpose(normalMatrix);
+    let nMat3 = mat3FromMat4(normalMatrix);
 
-    gl.uniformMatrix4fv(shProgram.iModelViewProjectionMatrix, false, modelViewProjection );
-    
-    /* Draw the six faces of a cube, with different colors. */
-    gl.uniform4fv(shProgram.iColor, [1,1,0,1] );
+    gl.uniformMatrix4fv(shProgram.iModelViewProjectionMatrix, false, mvp);
+    gl.uniformMatrix4fv(shProgram.iModelViewMatrix, false, mv);
+    gl.uniformMatrix3fv(shProgram.iNormalMatrix, false, nMat3);
+
+    // Light position rotates around
+    let time = performance.now() * 0.001;
+    let lightPos = [5*Math.cos(time), 5*Math.sin(time), 5];
+    gl.uniform3fv(shProgram.iLightPos, lightPos);
 
     surface.Draw();
 }
 
-/* Initialize the WebGL context. Called from init() */
-function initGL() {
-    let prog = createProgram( gl, vertexShaderSource, fragmentShaderSource );
+function mat3FromMat4(m) {
+    return [
+        m[0], m[1], m[2],
+        m[4], m[5], m[6],
+        m[8], m[9], m[10]
+    ];
+}
 
-    shProgram = new ShaderProgram('Basic', prog);
+function initGL() {
+    let prog = createProgram(gl, vertexShaderSource, fragmentShaderSource);
+    shProgram = new ShaderProgram('Gouraud', prog);
     shProgram.Use();
 
-    shProgram.iAttribVertex              = gl.getAttribLocation(prog, "vertex");
-    shProgram.iModelViewProjectionMatrix = gl.getUniformLocation(prog, "ModelViewProjectionMatrix");
-    shProgram.iColor                     = gl.getUniformLocation(prog, "color");
+    // Get attribute locations
+    shProgram.iAttribVertex = gl.getAttribLocation(prog, "aVertexPosition");
+    shProgram.iAttribNormal = gl.getAttribLocation(prog, "aVertexNormal");
+
+    // Get uniform locations
+    shProgram.iModelViewProjectionMatrix = gl.getUniformLocation(prog, "uMVPMatrix");
+    shProgram.iModelViewMatrix = gl.getUniformLocation(prog, "uMVMatrix");
+    shProgram.iNormalMatrix = gl.getUniformLocation(prog, "uNormalMatrix");
+    shProgram.iLightPos = gl.getUniformLocation(prog, "uLightPos");
 
     surface = new Model('Surface');
-    surface.CreateSurfaceData();
+    surface.CreateSurfaceData(uResolution, vResolution);
 
     gl.enable(gl.DEPTH_TEST);
 }
@@ -109,8 +130,16 @@ function createProgram(gl, vShader, fShader) {
     return prog;
 }
 
-function update(){
-    surface.CreateSurfaceData();
+function updateSliders(){
+    let uVal = document.getElementById("uRes").value;
+    let vVal = document.getElementById("vRes").value;
+    uResolution = parseInt(uVal);
+    vResolution = parseInt(vVal);
+    update();
+}
+
+function update() {
+    surface.CreateSurfaceData(uResolution, vResolution);
     draw();
 }
 
