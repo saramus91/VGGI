@@ -10,6 +10,9 @@ let shProgram;                  // A shader program
 let spaceball;                  // A SimpleRotator object that lets the user rotate the view by mouse.
 let lightSphere;
 
+let pivotProgram;
+let pivotSphere;
+
 let uResolution = 24;
 let vResolution = 20;
 
@@ -20,6 +23,10 @@ let lightElevationDeg = 30.0;
 let diffuseTexture;
 let specularTexture;
 let normalTexture;
+
+let pivotU = 0.5;
+let pivotV = 0.5;
+let texScale = 1.0;
 
 class ShaderProgram {
     constructor(name, program) {
@@ -40,6 +47,9 @@ class ShaderProgram {
         this.iDiffuseMap = -1;
         this.iSpecularMap = -1;
         this.iNormalMap = -1;
+
+        this.iTexScale = -1;
+        this.iTexPivot = -1;
     }
     Use() {
         gl.useProgram(this.prog);
@@ -97,9 +107,28 @@ function getLightPosition() {
     return [x,y,z];
 }
 
+function getSurfacePoint(uParam, vParam) {
+    let U = uParam * 2.0 * Math.PI;
+    let tMin = -2.0;
+    let tMax = 2.0;
+    let T = tMin + vParam * (tMax - tMin);
+
+    let a = 2.0;
+    let c = 1.5;
+    let theta = Math.PI / 8;
+    let scaleVal = 0.2;
+
+    let x = scaleVal * (a + T*Math.cos(theta) + c*T*T*Math.sin(theta)) * Math.cos(U);
+    let y = scaleVal * (a + T*Math.cos(theta) + c*T*T*Math.sin(theta)) * Math.sin(U);
+    let z = scaleVal * (-T*Math.sin(theta) + c*T*T*Math.cos(theta));
+    return [x,y,z];
+}
+
 function draw() {
     gl.clearColor(0,0,0,1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+    shProgram.Use();
 
     let projection = m4.perspective(Math.PI/6, 1, 1, 50);
     gl.uniformMatrix4fv(shProgram.iProjectionMatrix, false, projection);
@@ -132,6 +161,9 @@ function draw() {
     gl.bindTexture(gl.TEXTURE_2D, normalTexture);
     gl.uniform1i(shProgram.iNormalMap, 2);
 
+    gl.uniform1f(shProgram.iTexScale, texScale);
+    gl.uniform2f(shProgram.iTexPivot, pivotU, pivotV);
+
     surface.Draw();
 
     let lightSphereModelMatrix = m4.translation(lightPosWorld[0], lightPosWorld[1], lightPosWorld[2]);
@@ -144,6 +176,17 @@ function draw() {
 
     gl.uniformMatrix4fv(shProgram.iModelMatrix, false, modelMatrix);
     gl.uniformMatrix3fv(shProgram.iNormalMatrix, false, nMat3);
+
+    pivotProgram.Use();
+
+    gl.uniformMatrix4fv(pivotProgram.iProjectionMatrix, false, projection);
+    gl.uniformMatrix4fv(pivotProgram.iViewMatrix, false, viewMatrix);
+
+    let pivotXYZ = getSurfacePoint(pivotU, pivotV);
+    let pivotMatrix = m4.translation(pivotXYZ[0], pivotXYZ[1], pivotXYZ[2]);
+    gl.uniformMatrix4fv(pivotProgram.iModelMatrix, false, pivotMatrix);
+
+    pivotSphere.Draw();
 }
 
 function initTextures() {
@@ -182,7 +225,7 @@ function initTextures() {
 
 function initGL() {
     let prog = createProgram(gl, vertexShaderSource, fragmentShaderSource);
-    shProgram = new ShaderProgram('Gouraud', prog);
+    shProgram = new ShaderProgram('Main', prog);
     shProgram.Use();
 
     shProgram.iAttribVertex = gl.getAttribLocation(prog, "aVertexPosition");
@@ -201,6 +244,9 @@ function initGL() {
     shProgram.iSpecularMap = gl.getUniformLocation(prog, "uSpecularMap");
     shProgram.iNormalMap = gl.getUniformLocation(prog, "uNormalMap");
 
+    shProgram.iTexScale = gl.getUniformLocation(prog, "uTexScale");
+    shProgram.iTexPivot = gl.getUniformLocation(prog, "uTexPivot");
+
     surface = new Model(gl, shProgram);
     surface.CreateSurfaceData(uResolution, vResolution);
 
@@ -210,6 +256,21 @@ function initGL() {
     gl.enable(gl.DEPTH_TEST);
 
     initTextures();
+}
+
+function initPivotProgram() {
+    let prog = createProgram(gl, pivotVertexShaderSource, pivotFragmentShaderSource);
+    pivotProgram = new ShaderProgram('Pivot', prog);
+    pivotProgram.Use();
+
+    pivotProgram.iAttribVertex = gl.getAttribLocation(prog, "aVertexPosition");
+
+    pivotProgram.iModelMatrix = gl.getUniformLocation(prog, "uModelMatrix");
+    pivotProgram.iViewMatrix = gl.getUniformLocation(prog, "uViewMatrix");
+    pivotProgram.iProjectionMatrix = gl.getUniformLocation(prog, "uProjectionMatrix");
+
+    pivotSphere = new LightModel(gl, pivotProgram);
+    pivotSphere.CreateSphereData(0.1, 16, 16);
 }
 
 function updateSliders() {
@@ -228,6 +289,37 @@ function updateLightParams() {
     draw();
 }
 
+function initKeyboard() {
+    document.addEventListener('keydown', (e) => {
+        switch(e.code) {
+            case 'KeyA':
+                pivotU -= 0.01;
+                break;
+            case 'KeyD':
+                pivotU += 0.01;
+                break;
+            case 'KeyW':
+                pivotV += 0.01;
+                break;
+            case 'KeyS':
+                pivotV -= 0.01;
+                break;
+            case 'KeyQ':
+                texScale -= 0.05;
+                break;
+            case 'KeyE':
+                texScale += 0.05;
+                break;
+        }
+        if (pivotU < 0) pivotU = 0; if (pivotU>1) pivotU = 1;
+        if (pivotV < 0) pivotV = 0; if (pivotV>1) pivotV = 1;
+        if (texScale < 0.1) texScale = 0.1;
+        if (texScale > 5.0)  texScale = 5.0;
+
+        draw();
+    });
+}
+
 export function init() {
     let canvas = document.getElementById("webglcanvas");
     gl = canvas.getContext("webgl");
@@ -238,6 +330,8 @@ export function init() {
     }
 
     initGL();
+    initPivotProgram();
+
     spaceball = new TrackballRotator(canvas, draw, 0);
 
     document.getElementById("uRes").oninput = updateSliders;
@@ -247,5 +341,6 @@ export function init() {
     document.getElementById("lightAzimuth").oninput = updateLightParams;
     document.getElementById("lightElevation").oninput = updateLightParams;
 
+    initKeyboard();
     draw();
 }
